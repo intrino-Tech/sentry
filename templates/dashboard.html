@@ -1,0 +1,318 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SENTRY — Live Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f5f7fa; --panel:#ffffff; --panel2:#f7f9fb; --line:#e6eaf0; --line2:#dfe4ec;
+  --ink:#141a24; --text:#3a4555; --muted:#6b7686; --faint:#9aa4b2;
+  --green:#12a06a; --smoke:#d9870a; --fire:#ec2d23;
+  --font:"Poppins",system-ui,-apple-system,Segoe UI,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);
+  -webkit-font-smoothing:antialiased;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+
+header{display:flex;align-items:center;gap:14px;padding:13px 22px;background:var(--panel);
+  border-bottom:1px solid var(--line);transition:background .25s,box-shadow .25s;z-index:5}
+.brand{display:flex;align-items:center;gap:11px;font-weight:700;letter-spacing:.02em;font-size:18px;color:var(--ink)}
+.brand .dot{width:11px;height:11px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 0 4px rgba(18,160,106,.14);animation:breathe 3s ease-in-out infinite}
+.brand small{color:var(--muted);font-weight:500;letter-spacing:.1em;font-size:10px;display:block;margin-top:-1px}
+.sysstate{margin-left:8px;padding:7px 15px;border-radius:7px;font-weight:600;letter-spacing:.06em;
+  font-size:13px;background:rgba(18,160,106,.1);color:var(--green);border:1px solid rgba(18,160,106,.28)}
+.spacer{flex:1}
+.meta{color:var(--muted);font-size:13px;text-align:right;line-height:1.5;font-weight:500}
+.meta b{color:var(--ink);font-weight:600}
+#clock{font-size:22px;font-weight:600;letter-spacing:.02em;min-width:104px;text-align:right;color:var(--ink)}
+.hbtn{font-size:13px;color:var(--muted);font-weight:500;padding:8px 13px;border:1px solid var(--line2);
+  border-radius:7px;background:#fff;cursor:pointer;font-family:var(--font);display:inline-flex;align-items:center;gap:6px}
+.hbtn:hover{color:var(--ink);border-color:var(--muted)}
+.hbtn.primary{color:#fff;background:var(--fire);border-color:var(--fire);box-shadow:0 5px 12px -6px rgba(236,45,35,.5)}
+.hbtn.primary:hover{filter:brightness(1.07);color:#fff}
+a{text-decoration:none}
+
+body.alarm header{background:#fdecea;box-shadow:inset 0 0 0 2px var(--fire);animation:bar 1s steps(1) infinite}
+body.alarm .brand .dot{background:var(--fire);box-shadow:0 0 0 4px rgba(236,45,35,.2)}
+body.alarm .sysstate{background:var(--fire);color:#fff;border-color:var(--fire)}
+@keyframes bar{0%{box-shadow:inset 0 0 0 2px var(--fire)}50%{box-shadow:inset 0 0 0 2px rgba(236,45,35,.4)}}
+
+main{flex:1;display:grid;grid-template-columns:1fr 326px;min-height:0}
+.feeds{padding:18px;overflow:auto}
+.feeds h2,.rail h2{margin:0 0 13px;font-size:11px;letter-spacing:.14em;color:var(--muted);
+  font-weight:600;text-transform:uppercase}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
+
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;
+  display:flex;flex-direction:column;transition:transform .15s,border-color .2s,box-shadow .2s;
+  box-shadow:0 1px 3px rgba(20,26,36,.04)}
+.tile:hover{transform:translateY(-2px);box-shadow:0 12px 28px -16px rgba(20,26,36,.25)}
+.tile .view{position:relative;aspect-ratio:4/3;background:#eef1f5}
+.tile img{width:100%;height:100%;object-fit:cover;display:block}
+.tile .badge{position:absolute;top:10px;right:10px;font-size:11px;padding:4px 9px;border-radius:6px;
+  font-weight:600;letter-spacing:.03em;background:rgba(18,160,106,.92);color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.18)}
+.tile .badge.off{background:rgba(107,118,134,.92)}
+.tile .badge.fire{background:rgba(236,45,35,.95)}
+.tile .badge.smoke{background:rgba(217,135,10,.95)}
+.tile .label{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;font-size:14px;font-weight:600;color:var(--ink)}
+.tile .label .id{color:var(--muted);font-size:11px;font-weight:500}
+.tile.alarm{border-color:var(--fire);box-shadow:0 0 0 1px var(--fire),0 0 22px rgba(236,45,35,.22);animation:tilepulse 1.1s ease-in-out infinite}
+@keyframes tilepulse{50%{box-shadow:0 0 0 1px var(--fire),0 0 8px rgba(236,45,35,.12)}}
+
+/* empty state */
+.emptyfeeds{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;color:var(--muted);padding:60px 20px;border:1.5px dashed var(--line2);
+  border-radius:14px;background:var(--panel)}
+.emptyfeeds .big{font-size:18px;font-weight:600;color:var(--ink);margin-bottom:6px}
+.emptyfeeds p{margin:0 0 18px;font-size:14px;max-width:42ch;line-height:1.6}
+
+.rail{background:var(--panel);border-left:1px solid var(--line);padding:18px;display:flex;flex-direction:column;min-height:0}
+.alerts{overflow:auto;display:flex;flex-direction:column;gap:8px}
+.alert{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;
+  background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--smoke);border-radius:8px;padding:9px 12px}
+.alert.fire{border-left-color:var(--fire)}
+.alert .t{font-size:12px;color:var(--muted);font-weight:500}
+.alert .c{font-size:13px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.alert .c span{display:block;font-size:11px;font-weight:600;letter-spacing:.05em}
+.alert.fire .c span{color:var(--fire)}.alert.smoke .c span{color:var(--smoke)}
+.alert .v{font-size:12px;color:var(--muted);font-weight:600}
+.empty{color:var(--muted);font-size:13px;text-align:center;padding:30px 10px;line-height:1.6}
+
+/* modals */
+.overlay{position:fixed;inset:0;background:rgba(20,26,36,.5);backdrop-filter:blur(3px);
+  display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+.overlay.open{display:flex;animation:fade .15s ease}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:16px;width:100%;max-width:460px;
+  box-shadow:0 40px 90px -30px rgba(20,26,36,.5);animation:pop .18s ease;max-height:86vh;display:flex;flex-direction:column}
+@keyframes pop{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--line)}
+.modal-head h3{margin:0;font-size:16px;font-weight:600;color:var(--ink)}
+.modal-head .x{width:30px;height:30px;border-radius:7px;border:1px solid var(--line2);background:#fff;
+  cursor:pointer;color:var(--muted);font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center}
+.modal-head .x:hover{color:var(--ink);border-color:var(--muted)}
+.modal-body{padding:20px;overflow:auto}
+.modal-body label{display:block;font-size:10px;letter-spacing:.1em;color:var(--muted);margin:0 0 5px;font-weight:600;text-transform:uppercase}
+.modal-body .row{margin-bottom:13px}
+.modal-body input,.modal-body select{width:100%;background:#fff;color:var(--ink);border:1px solid var(--line2);
+  border-radius:8px;padding:9px 11px;font-family:var(--font);font-size:14px;color-scheme:light}
+.modal-body input:focus,.modal-body select:focus{outline:2px solid rgba(236,45,35,.4);outline-offset:1px;border-color:var(--fire)}
+.modal-body .hint{font-size:12px;color:var(--faint);margin:2px 0 16px}
+.btn-go{width:100%;background:var(--fire);color:#fff;border:0;border-radius:8px;padding:11px;
+  font-family:var(--font);font-weight:600;font-size:14px;cursor:pointer;display:flex;align-items:center;
+  justify-content:center;gap:8px;box-shadow:0 6px 14px -6px rgba(236,45,35,.5)}
+.btn-go:hover{filter:brightness(1.07)}
+.btn-line{width:100%;background:#fff;color:var(--ink);border:1px solid var(--line2);border-radius:8px;padding:10px;
+  font-family:var(--font);font-weight:600;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-line:hover{border-color:var(--muted)}
+.sep{display:flex;align-items:center;gap:10px;color:var(--faint);font-size:11px;font-weight:600;
+  letter-spacing:.1em;margin:18px 0;text-transform:uppercase}
+.sep::before,.sep::after{content:"";height:1px;background:var(--line);flex:1}
+.disc{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.disc-item{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px 11px}
+.disc-item .dn{font-size:13px;font-weight:600;color:var(--ink)}
+.disc-item .du{font-size:11px;color:var(--muted);word-break:break-all}
+.disc-item button{background:var(--green);color:#fff;border:0;border-radius:7px;padding:7px 13px;
+  font-family:var(--font);font-weight:600;font-size:12px;cursor:pointer;white-space:nowrap}
+.disc-item button:disabled{background:var(--faint);cursor:default}
+.disc-note{font-size:13px;color:var(--muted);padding:12px 2px}
+
+@keyframes breathe{50%{box-shadow:0 0 0 7px rgba(18,160,106,.05)}}
+@media (max-width:840px){main{grid-template-columns:1fr}.rail{border-left:0;border-top:1px solid var(--line)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style></head>
+<body>
+<header>
+  <div class="brand"><span class="dot"></span>
+    <div>SENTRY<small>FIRE &amp; SMOKE WATCH</small></div></div>
+  <div class="sysstate" id="sysstate">ALL CLEAR</div>
+  <div class="spacer"></div>
+  <div class="meta">CAMERAS&nbsp; <b id="online">0</b> / <b id="total">0</b> ONLINE<br>
+    <span id="date"></span></div>
+  <div id="clock">--:--:--</div>
+  <button class="hbtn" onclick="openAdd()">＋ Add cameras</button>
+  <button class="hbtn primary" onclick="openExport()">⬇ Export report</button>
+  <a class="hbtn" href="/">← Home</a>
+  <a class="hbtn" href="/logout">Log out</a>
+</header>
+<main>
+  <section class="feeds">
+    <h2>Live feeds</h2>
+    <div class="grid" id="grid"></div>
+    <div class="emptyfeeds" id="emptyfeeds" style="display:none">
+      <div class="big">No cameras connected</div>
+      <p>Search your office laptops or add a stream URL to start monitoring.</p>
+      <button class="hbtn primary" onclick="openAdd()">＋ Add cameras</button>
+    </div>
+  </section>
+  <aside class="rail">
+    <h2>Alert log</h2>
+    <div class="alerts" id="alerts"><div class="empty">No detections.<br>Monitoring all feeds.</div></div>
+  </aside>
+</main>
+
+<!-- export popup -->
+<div class="overlay" id="exportOverlay" onclick="if(event.target===this)closeExport()">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Export report">
+    <div class="modal-head"><h3>Export report</h3>
+      <button class="x" onclick="closeExport()" aria-label="Close">✕</button></div>
+    <div class="modal-body">
+      <div class="row"><label>From</label><input type="datetime-local" id="rfrom"></div>
+      <div class="row"><label>To</label><input type="datetime-local" id="rto"></div>
+      <div class="row"><label>Camera</label><select id="rcam"><option value="all">All cameras</option></select></div>
+      <div class="hint">Leave dates blank for the full history.</div>
+      <button class="btn-go" onclick="downloadReport()">⬇ Download PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- add-cameras popup -->
+<div class="overlay" id="addOverlay" onclick="if(event.target===this)closeAdd()">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Add cameras">
+    <div class="modal-head"><h3>Add cameras</h3>
+      <button class="x" onclick="closeAdd()" aria-label="Close">✕</button></div>
+    <div class="modal-body">
+      <button class="btn-line" onclick="searchLaptops()">🔍 Search office laptops</button>
+      <div class="disc" id="discResults"></div>
+      <div class="sep">or add manually</div>
+      <div class="row"><label>Stream URL</label>
+        <input type="text" id="mUrl" placeholder="http://192.168.1.42:5000/cam/0 or rtsp://…"></div>
+      <div class="row"><label>Name (optional)</label>
+        <input type="text" id="mName" placeholder="Weld Bay"></div>
+      <button class="btn-go" onclick="addManual()">＋ Add camera</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function pad(n){return String(n).padStart(2,'0')}
+function tick(){const d=new Date();
+  document.getElementById('clock').textContent=pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+  document.getElementById('date').textContent=d.toDateString().toUpperCase();}
+setInterval(tick,1000);tick();
+
+function ensureTile(c){
+  let tile=document.getElementById('tile-'+c.id);
+  if(tile) return tile;
+  const grid=document.getElementById('grid');
+  tile=document.createElement('div');
+  tile.className='tile'; tile.id='tile-'+c.id;
+  tile.innerHTML=
+    '<div class="view"><img src="/feed/'+c.id+'" alt="'+c.name+'">'+
+    '<span class="badge" id="badge-'+c.id+'">●&nbsp;LIVE</span></div>'+
+    '<div class="label"><span>'+c.name+'</span><span class="id">CAM-'+pad(c.id)+'</span></div>';
+  grid.appendChild(tile);
+  return tile;
+}
+
+let lastCamKey="";
+function syncDropdown(cams){
+  const sel=document.getElementById('rcam'); if(!sel) return;
+  const key=cams.map(c=>c.name).join('|');
+  if(key===lastCamKey) return;       // only rebuild when the set changes
+  lastCamKey=key;
+  const cur=sel.value;
+  sel.innerHTML='<option value="all">All cameras</option>'+
+    cams.map(c=>'<option value="'+c.name+'">'+c.name+'</option>').join('');
+  if([...sel.options].some(o=>o.value===cur)) sel.value=cur;
+}
+
+async function refresh(){
+  let s; try{ s=await (await fetch('/api/status')).json(); }catch(e){return;}
+  document.getElementById('online').textContent=s.online;
+  document.getElementById('total').textContent=s.total;
+
+  document.getElementById('emptyfeeds').style.display = s.cameras.length ? 'none' : 'flex';
+
+  document.body.classList.toggle('alarm',s.system_alarm);
+  document.getElementById('sysstate').textContent =
+    s.system_alarm ? ('⚠ ALARM — '+(s.alarm_cam||'')) : 'ALL CLEAR';
+
+  s.cameras.forEach(c=>{
+    ensureTile(c);
+    const tile=document.getElementById('tile-'+c.id);
+    const badge=document.getElementById('badge-'+c.id);
+    tile.classList.toggle('alarm',c.alarm);
+    if(c.alarm){
+      badge.className='badge '+(c.type==='fire'?'fire':'smoke');
+      badge.textContent='⚠ '+(c.type||'').toUpperCase()+' '+(c.conf!=null?c.conf:'');
+    }else if(c.online){
+      badge.className='badge';badge.textContent='● LIVE';
+    }else{
+      badge.className='badge off';badge.textContent='○ OFFLINE';
+    }
+  });
+  syncDropdown(s.cameras);
+
+  const box=document.getElementById('alerts');
+  if(!s.alerts.length){box.innerHTML='<div class="empty">No detections.<br>Monitoring all feeds.</div>';}
+  else{box.innerHTML=s.alerts.map(a=>
+    '<div class="alert '+a.type+'"><span class="t">'+a.time+'</span>'+
+    '<span class="c">'+a.camera+'<span>'+a.type.toUpperCase()+'</span></span>'+
+    '<span class="v">'+a.conf+'</span></div>').join('');}
+}
+setInterval(refresh,1000);refresh();
+
+/* ---- export popup ---- */
+function openExport(){document.getElementById('exportOverlay').classList.add('open');}
+function closeExport(){document.getElementById('exportOverlay').classList.remove('open');}
+function downloadReport(){
+  const p=new URLSearchParams();
+  const f=document.getElementById('rfrom').value;
+  const t=document.getElementById('rto').value;
+  const c=document.getElementById('rcam').value;
+  if(f)p.set('start',f); if(t)p.set('end',t); if(c&&c!=='all')p.set('camera',c);
+  window.location.href='/report?'+p.toString();
+  closeExport();
+}
+
+/* ---- add-cameras popup ---- */
+function openAdd(){document.getElementById('addOverlay').classList.add('open');}
+function closeAdd(){document.getElementById('addOverlay').classList.remove('open');}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeExport();closeAdd();}});
+
+async function searchLaptops(){
+  const box=document.getElementById('discResults');
+  box.innerHTML='<div class="disc-note">Searching office laptops…</div>';
+  try{
+    const d=await (await fetch('/api/discover',{method:'POST'})).json();
+    if(!d.cameras || !d.cameras.length){
+      box.innerHTML='<div class="disc-note">No new cameras found. Check that the laptop servers are running.</div>';
+      return;
+    }
+    box.innerHTML='';
+    d.cameras.forEach(c=>{
+      const row=document.createElement('div'); row.className='disc-item';
+      row.innerHTML='<div><div class="dn">'+c.name+'</div><div class="du">'+c.url+'</div></div>';
+      const btn=document.createElement('button'); btn.textContent='Add';
+      btn.onclick=()=>addCam(c.url,c.name,btn);
+      row.appendChild(btn); box.appendChild(row);
+    });
+  }catch(e){ box.innerHTML='<div class="disc-note">Search failed.</div>'; }
+}
+
+async function addCam(url,name,btn){
+  if(btn){btn.disabled=true;btn.textContent='Adding…';}
+  try{
+    const r=await fetch('/api/add_camera',{method:'POST',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({url,name})});
+    const d=await r.json();
+    if(d.ok){ if(btn){btn.textContent='Added ✓';} refresh(); }
+    else{ if(btn){btn.disabled=false;btn.textContent='Add';} alert(d.error||'Could not add camera.'); }
+  }catch(e){ if(btn){btn.disabled=false;btn.textContent='Add';} alert('Could not reach the server.'); }
+}
+
+async function addManual(){
+  const url=document.getElementById('mUrl').value.trim();
+  const name=document.getElementById('mName').value.trim()||url;
+  if(!url){ alert('Enter a stream URL.'); return; }
+  await addCam(url,name,null);
+  document.getElementById('mUrl').value='';
+  document.getElementById('mName').value='';
+}
+</script>
+</body></html>

@@ -1,0 +1,51 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SENTRY — Sign in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f5f7fa; --panel:#ffffff; --line:#e6eaf0; --line2:#dfe4ec;
+  --ink:#141a24; --muted:#6b7686; --green:#12a06a; --fire:#ec2d23;
+  --font:"Poppins",system-ui,-apple-system,Segoe UI,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);
+  -webkit-font-smoothing:antialiased;display:flex;align-items:center;justify-content:center;
+  min-height:100vh;padding:20px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;width:100%;max-width:380px;
+  padding:30px 30px 28px;box-shadow:0 30px 70px -34px rgba(20,26,36,.35)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:20px;letter-spacing:.02em;
+  color:var(--ink);justify-content:center;margin-bottom:4px}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 0 4px rgba(18,160,106,.14)}
+.sub{text-align:center;color:var(--muted);font-size:13px;font-weight:500;margin-bottom:24px}
+label{display:block;font-size:10px;letter-spacing:.1em;color:var(--muted);margin:0 0 5px;
+  font-weight:600;text-transform:uppercase}
+.row{margin-bottom:14px}
+input{width:100%;background:#fff;color:var(--ink);border:1px solid var(--line2);border-radius:9px;
+  padding:11px 13px;font-family:var(--font);font-size:15px}
+input:focus{outline:2px solid rgba(236,45,35,.35);outline-offset:1px;border-color:var(--fire)}
+button{width:100%;background:var(--fire);color:#fff;border:0;border-radius:9px;padding:12px;
+  font-family:var(--font);font-weight:600;font-size:15px;cursor:pointer;margin-top:6px;
+  box-shadow:0 6px 16px -6px rgba(236,45,35,.5);transition:filter .15s}
+button:hover{filter:brightness(1.07)}
+.err{background:rgba(236,45,35,.08);border:1px solid rgba(236,45,35,.3);color:var(--fire);
+  font-size:13px;font-weight:500;border-radius:8px;padding:9px 12px;margin-bottom:16px;text-align:center}
+.foot{text-align:center;color:var(--muted);font-size:11px;margin-top:18px}
+</style></head>
+<body>
+  <form class="card" method="POST" action="/login{{ '?next=' + next if next else '' }}">
+    <div class="brand"><span class="dot"></span>SENTRY</div>
+    <div class="sub">Fire &amp; Smoke Monitoring · sign in</div>
+    {% if error %}<div class="err">{{ error }}</div>{% endif %}
+    <div class="row"><label>Username</label>
+      <input type="text" name="username" autocomplete="username" autofocus required></div>
+    <div class="row"><label>Password</label>
+      <input type="password" name="password" autocomplete="current-password" required></div>
+    <button type="submit">Sign in</button>
+    <div class="foot">Intrino Robotics &amp; Technologies</div>
+  </form>
+</body></html>
