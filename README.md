@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Sentry AI Surveillance System
 
 An AI-powered surveillance dashboard for real-time fire and smoke monitoring using YOLO object detection. The system provides a web interface to monitor multiple cameras, detect safety events, generate reports, and maintain event logs.
@@ -369,3 +370,6 @@ inside the terminal.
 # License
 
 This project is intended for internal use unless otherwise specified.
+=======
+# sentry
+>>>>>>> 816d6ad61c698d27825add25da4a34fbe0d2f2b8
