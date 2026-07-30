@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Sentry AI Surveillance System
 
 An AI-powered surveillance dashboard for real-time fire and smoke monitoring using YOLO object detection. The system provides a web interface to monitor multiple cameras, detect safety events, generate reports, and maintain event logs.
