@@ -20,11 +20,11 @@ import requests   # pip install requests
 # name is just a friendly label; ip is the laptop's LAN IP.
 # ==========================
 KNOWN_LAPTOPS = [
-    {"name": "Reception Laptop", "ip": "192.168.88.6"},
-    {"name": "Floor-1 Laptop",   "ip": "192.168.88.8"},
-    {"name": "Floor-2 Laptop",   "ip": "192.168.88.12"},
-    {"name": "Lab Laptop",       "ip": "192.168.1.45"},
-    # add more...
+    # {"name": "Reception Laptop", "ip": "192.168.88.6"},
+    # {"name": "Floor-1 Laptop",   "ip": "192.168.88.8"},
+    # {"name": "Floor-2 Laptop",   "ip": "192.168.88.12"},
+    # {"name": "Lab Laptop",       "ip": "192.168.1.45"},
+    # # add more...
 ]
 
 PORT = 5000

@@ -1,0 +1,193 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SENTRY — Settings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f5f7fa; --panel:#ffffff; --panel2:#f7f9fb; --line:#e6eaf0; --line2:#dfe4ec;
+  --ink:#141a24; --text:#3a4555; --muted:#6b7686; --faint:#9aa4b2;
+  --green:#12a06a; --smoke:#d9870a; --fire:#ec2d23;
+  --font:"Poppins",system-ui,-apple-system,Segoe UI,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);
+  -webkit-font-smoothing:antialiased;display:flex;flex-direction:column;min-height:100vh}
+header{display:flex;align-items:center;gap:14px;padding:13px 22px;background:var(--panel);
+  border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.brand{display:flex;align-items:center;gap:11px;font-weight:700;letter-spacing:.02em;font-size:18px;color:var(--ink)}
+.brand .dot{width:11px;height:11px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px rgba(18,160,106,.14)}
+.brand small{color:var(--muted);font-weight:500;letter-spacing:.1em;font-size:10px;display:block;margin-top:-1px}
+.spacer{flex:1}
+.hbtn{font-size:13px;color:var(--muted);font-weight:500;padding:8px 13px;border:1px solid var(--line2);
+  border-radius:7px;background:#fff;cursor:pointer;font-family:var(--font);display:inline-flex;align-items:center;gap:6px;text-decoration:none}
+.hbtn:hover{color:var(--ink);border-color:var(--muted)}
+.hbtn.primary{color:#fff;background:var(--fire);border-color:var(--fire);box-shadow:0 5px 12px -6px rgba(236,45,35,.5)}
+.hbtn.primary:hover{filter:brightness(1.07)}
+
+.wrap{max-width:760px;width:100%;margin:0 auto;padding:22px 20px 120px}
+.intro{color:var(--muted);font-size:14px;line-height:1.6;margin:2px 0 22px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  box-shadow:0 1px 3px rgba(20,26,36,.04);padding:18px 20px;margin-bottom:16px}
+.card h2{margin:0 0 4px;font-size:15px;font-weight:600;color:var(--ink)}
+.card .sub{margin:0 0 14px;font-size:12px;color:var(--faint)}
+.field{display:grid;grid-template-columns:1fr 170px;gap:12px;align-items:center;padding:11px 0;border-top:1px solid var(--line)}
+.field:first-of-type{border-top:0}
+.field .lbl{font-size:14px;font-weight:500;color:var(--text)}
+.field .lbl .badge{display:inline-block;margin-left:8px;font-size:10px;font-weight:600;letter-spacing:.04em;
+  padding:2px 7px;border-radius:5px;background:rgba(217,135,10,.14);color:var(--smoke);vertical-align:middle}
+.field .rng{font-size:11px;color:var(--faint);display:block;margin-top:2px;font-weight:400}
+.field input[type=text],.field input[type=number]{width:100%;background:#fff;color:var(--ink);
+  border:1px solid var(--line2);border-radius:8px;padding:9px 11px;font-family:var(--font);font-size:14px;text-align:right}
+.field input:focus{outline:2px solid rgba(236,45,35,.35);outline-offset:1px;border-color:var(--fire)}
+/* toggle */
+.tg{justify-self:end;position:relative;width:46px;height:26px}
+.tg input{opacity:0;width:0;height:0}
+.tg .sl{position:absolute;inset:0;background:var(--line2);border-radius:20px;transition:.15s;cursor:pointer}
+.tg .sl::before{content:"";position:absolute;width:20px;height:20px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.15s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.tg input:checked + .sl{background:var(--green)}
+.tg input:checked + .sl::before{transform:translateX(20px)}
+/* sensor rows */
+.srow{display:grid;grid-template-columns:1fr 110px 110px;gap:12px;align-items:end;padding:11px 0;border-top:1px solid var(--line)}
+.srow:first-of-type{border-top:0}
+.srow .sn{font-size:14px;font-weight:600;color:var(--ink)}
+.srow .cap{font-size:10px;letter-spacing:.08em;color:var(--muted);font-weight:600;text-transform:uppercase;margin-bottom:4px;display:block}
+.srow input{width:100%;background:#fff;border:1px solid var(--line2);border-radius:8px;padding:8px 10px;font-family:var(--font);font-size:14px;text-align:right}
+
+.savebar{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.92);backdrop-filter:blur(6px);
+  border-top:1px solid var(--line);padding:14px 20px;display:flex;align-items:center;gap:14px;justify-content:center}
+.savebar .inner{max-width:760px;width:100%;display:flex;align-items:center;gap:14px}
+.msg{font-size:13px;font-weight:500;flex:1}
+.msg.ok{color:var(--green)}.msg.warn{color:var(--smoke)}.msg.err{color:var(--fire)}
+.btn-go{background:var(--fire);color:#fff;border:0;border-radius:8px;padding:11px 22px;font-family:var(--font);
+  font-weight:600;font-size:14px;cursor:pointer;box-shadow:0 6px 14px -6px rgba(236,45,35,.5)}
+.btn-go:hover{filter:brightness(1.07)}
+.btn-go:disabled{opacity:.6;cursor:default}
+.loading{color:var(--muted);text-align:center;padding:40px}
+@media (max-width:560px){.field{grid-template-columns:1fr 120px}.srow{grid-template-columns:1fr;gap:8px}}
+</style></head>
+<body>
+<header>
+  <div class="brand"><span class="dot"></span><div>SENTRY<small>SETTINGS</small></div></div>
+  <div class="spacer"></div>
+  <a class="hbtn" href="/dashboard">← Console</a>
+  <a class="hbtn" href="/logout">Log out</a>
+</header>
+
+<div class="wrap">
+  <p class="intro">Edit tunables without touching code. Most changes apply <b>instantly</b>.
+    Ones marked <span style="color:var(--smoke);font-weight:600">RESTART</span> are only read
+    at startup, so they’re saved and take effect the next time you run SENTRY.
+    Detection here is a supplement to your certified detectors — tune it, don’t rely on it alone.</p>
+
+  <div id="content"><div class="loading">Loading settings…</div></div>
+</div>
+
+<div class="savebar">
+  <div class="inner">
+    <span class="msg" id="msg"></span>
+    <button class="btn-go" id="saveBtn" onclick="save()" disabled>Save changes</button>
+  </div>
+</div>
+
+<script>
+const GROUPS = [
+  {id:"detection",  title:"Detection",   sub:"How the model runs on each camera feed."},
+  {id:"stream",     title:"Stream & UI", sub:"What the dashboard shows and keeps."},
+  {id:"sensors",    title:"Sensors",     sub:"MQTT temperature behaviour and thresholds."},
+  {id:"connection", title:"Connection",  sub:"Read once at startup — changes need a restart."},
+];
+let CFG = null;
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+async function load(){
+  try{ CFG = await (await fetch('/api/config')).json(); }
+  catch(e){ document.getElementById('content').innerHTML='<div class="loading">Could not load settings.</div>'; return; }
+  render();
+  document.getElementById('saveBtn').disabled=false;
+}
+
+function fieldHTML(key){
+  const v = CFG.scalars[key], m = CFG.meta[key];
+  const badge = m.live ? '' : '<span class="badge">RESTART</span>';
+  let rng = '';
+  if(m.min!=null && m.max!=null) rng = '<span class="rng">'+m.min+' – '+m.max+'</span>';
+  const lbl = '<div><span class="lbl">'+esc(m.label)+badge+'</span>'+rng+'</div>';
+  let ctrl;
+  if(m.type==='bool'){
+    ctrl = '<label class="tg"><input type="checkbox" data-key="'+key+'" '+(v?'checked':'')+'><span class="sl"></span></label>';
+  }else{
+    const t = (m.type==='number'||m.type==='int') ? 'number' : 'text';
+    const step = key==='CONF' ? '0.01' : (m.type==='int'?'1':'any');
+    const stepAttr = t==='number' ? ' step="'+step+'"' : '';
+    ctrl = '<input type="'+t+'"'+stepAttr+' data-key="'+key+'" value="'+esc(v)+'">';
+  }
+  return '<div class="field">'+lbl+ctrl+'</div>';
+}
+
+function render(){
+  let html='';
+  for(const g of GROUPS){
+    const keys = Object.keys(CFG.meta).filter(k=>CFG.meta[k].group===g.id);
+    const isSensors = g.id==='sensors';
+    if(!keys.length && !(isSensors && CFG.sensors.length)) continue;
+    html += '<div class="card"><h2>'+g.title+'</h2><p class="sub">'+g.sub+'</p>';
+    html += keys.map(fieldHTML).join('');
+    if(isSensors && CFG.sensors.length){
+      html += CFG.sensors.map(s=>(
+        '<div class="srow">'+
+          '<div class="sn">'+esc(s.name)+' <span style="color:var(--faint);font-weight:500">'+esc(s.unit)+'</span></div>'+
+          '<div><span class="cap">Warn ≥</span><input type="number" step="any" data-sid="'+esc(s.id)+'" data-th="warn" value="'+(s.warn==null?'':esc(s.warn))+'"></div>'+
+          '<div><span class="cap">Alarm ≥</span><input type="number" step="any" data-sid="'+esc(s.id)+'" data-th="alarm" value="'+(s.alarm==null?'':esc(s.alarm))+'"></div>'+
+        '</div>'
+      )).join('');
+    }
+    html += '</div>';
+  }
+  document.getElementById('content').innerHTML = html;
+}
+
+function collect(){
+  const scalars={};
+  document.querySelectorAll('[data-key]').forEach(el=>{
+    const key=el.dataset.key;
+    if(el.type==='checkbox') scalars[key]=el.checked;
+    else scalars[key]=el.value;
+  });
+  const sensor_thresholds={};
+  document.querySelectorAll('[data-sid]').forEach(el=>{
+    const id=el.dataset.sid, th=el.dataset.th;
+    (sensor_thresholds[id]=sensor_thresholds[id]||{})[th] = el.value==='' ? null : el.value;
+  });
+  return {scalars, sensor_thresholds};
+}
+
+async function save(){
+  const btn=document.getElementById('saveBtn'), msg=document.getElementById('msg');
+  btn.disabled=true; msg.className='msg'; msg.textContent='Saving…';
+  try{
+    const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(collect())});
+    const d=await r.json();
+    if(d.ok){
+      if(d.restart_required && d.restart_required.length){
+        msg.className='msg warn';
+        msg.textContent='Saved. These need a restart to apply: '+d.restart_required.join(', ');
+      }else{
+        msg.className='msg ok'; msg.textContent='Saved — applied live.';
+      }
+      // refresh values from server
+      CFG = await (await fetch('/api/config')).json(); render();
+    }else{
+      msg.className='msg err'; msg.textContent=d.error||'Save failed.';
+    }
+  }catch(e){ msg.className='msg err'; msg.textContent='Could not reach the server.'; }
+  btn.disabled=false;
+}
+
+load();
+</script>
+</body></html>

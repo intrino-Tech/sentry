@@ -1,0 +1,7 @@
+.sentry/lib/python3.12/site-packages/cuda/bindings/utils/__pycache__/_ptx_utils.cpython-312.pyc
+.sentry/
+
+__pycache__/
+
+best.onnx
+firebest.onnx

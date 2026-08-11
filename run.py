@@ -1,17 +1,19 @@
 """
 run.py  —  ENTRY POINT
 ======================
-Wires everything together: pick laptops -> build the Detector (algorithm)
--> hand it to the web app (UI) -> serve.
+Applies saved settings -> start MQTT sensor hub -> build the Detector
+(algorithm) -> auto-connect cameras -> hand it to the web app (UI) -> serve.
 
 Run order:
-    1. Start laptop_camera_server.py on each office laptop.
-    2. python run.py  -> choose laptops  -> open the printed URL.
+    1. Start laptop_camera_server.py on each office laptop (optional).
+    2. python run.py  -> open the printed URL.
 
-The two layers it connects:
-    detector.py   = algorithm  (edit to change detection behaviour)
+Layers it connects:
+    settings_store.py = live-editable config overlay (settings.json)
+    sensors.py    = MQTT sensor source (optional)
+    detector.py   = algorithm
     web_app.py    = server      } UI
-    templates/dashboard.html    } (edit to change the look)
+    templates/…   = look        }
 """
 
 import socket
@@ -19,6 +21,7 @@ import socket
 from detector import Detector
 from web_app import create_app
 import config
+import settings_store
 import auth
 import main_pc_sources
 
@@ -34,14 +37,29 @@ def get_lan_ip():
     return ip
 
 
+def start_sensor_hub():
+    """Bring up MQTT sensors if paho-mqtt is installed; otherwise skip cleanly."""
+    try:
+        from sensors import SensorHub
+    except ImportError as e:
+        print(f"[run] MQTT sensors disabled (paho-mqtt not installed): {e}")
+        print("[run] install with:  pip install paho-mqtt")
+        return None
+    return SensorHub().start()
+
+
 def main():
-    detector = Detector()
+    # Apply any saved overrides from settings.json BEFORE anything reads config.
+    # (model path, broker, port are read at construction time below.)
+    settings_store.load_and_apply()
+
+    sensor_hub = start_sensor_hub()
+
+    detector = Detector(sensor_hub=sensor_hub)
     for url, name in config.IP_CAMERAS:
         detector.add_camera(url, name)
 
-    # Best-effort: try to auto-connect known laptops at startup. Never fatal —
-    # the server starts even if none are found, and you can add cameras from
-    # the dashboard's "Add cameras" button.
+    # Best-effort laptop auto-connect. Never fatal.
     try:
         sources = main_pc_sources.discover_all()
     except Exception as e:
@@ -53,7 +71,6 @@ def main():
 
     app = create_app(detector)
 
-    # Seed a default login on first run so you're never locked out.
     seeded = auth.ensure_default()
 
     ip = get_lan_ip()
@@ -62,7 +79,11 @@ def main():
     print("===================================")
     print(f" Landing page :  http://{ip}:{config.WEB_PORT}/")
     print(f" Live console :  http://{ip}:{config.WEB_PORT}/dashboard")
+    print(f" Settings     :  http://{ip}:{config.WEB_PORT}/config")
     print(f" Cameras connected at start: {len(detector.cameras)}")
+    if sensor_hub is not None:
+        print(f" Sensors      :  {len(sensor_hub.sensors)} "
+              f"(MQTT {config.MQTT_BROKER}:{config.MQTT_PORT})")
     if not detector.cameras:
         print(" (none found — add them from the dashboard 'Add cameras' button)")
     if seeded:
@@ -77,6 +98,8 @@ def main():
         app.run(host="0.0.0.0", port=config.WEB_PORT, threaded=True)
     finally:
         detector.stop()
+        if sensor_hub is not None:
+            sensor_hub.stop()
 
 
 if __name__ == "__main__":
