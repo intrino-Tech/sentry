@@ -17,29 +17,36 @@ Three things live here:
                          with auto-reconnect + a real freeze watchdog.
 
 --------------------------------------------------------------------------
-CHANGES FROM THE PREVIOUS VERSION
+HARD-WON NOTES — read before changing the capture path
 --------------------------------------------------------------------------
-* RTSP_OPTIONS no longer sets `fflags;nobuffer` or `reorder_queue_size;0`.
-  Those two flags were the cause of the continuous
-      "Could not find ref with POC N / Error constructing the frame RPS"
-  errors. HEVC legitimately delivers packets out of decode order because of
-  B-frames and multi-frame reference chains. With zero reorder capacity the
-  demuxer handed the decoder packets whose reference frames had not arrived
-  yet, so every frame failed to resolve its reference picture set. The steady
-  march of POC numbers (21, 22, 23...) was the giveaway: genuine packet loss
-  is bursty and irregular, not perfectly sequential. A small reorder queue
-  costs ~100-200 ms of latency, which is irrelevant for fire detection.
+* DO NOT call cap.set() on a GStreamer capture. The pipeline is already
+  PLAYING by the time open() returns, and setting an unsupported property
+  knocks it back out. The failure signature is a "GStreamer: unhandled
+  property" warning followed immediately by "Embedded video playback halted
+  ... Internal data stream error" and "unable to start pipeline" — which reads
+  like a stream problem but is self-inflicted. CAP_PROP_BUFFERSIZE is
+  unnecessary there anyway: the appsink's `drop=true max-buffers=1` already
+  gives newest-frame-wins behaviour.
 
-* The freeze watchdog now actually works. Previously `healthy()` was called
-  immediately after `last_frame_time` was refreshed, so it could never return
-  False. A frozen RTSP feed that keeps re-delivering the same buffer would
-  never trigger a reconnect. Freshness is now judged on frame CONTENT.
+* RTSP_OPTIONS must NOT set `fflags;nobuffer` or `reorder_queue_size;0`.
+  Those caused continuous "Could not find ref with POC N / Error constructing
+  the frame RPS" errors. HEVC legitimately delivers packets out of decode
+  order because of B-frames and multi-frame reference chains; with zero
+  reorder capacity the demuxer hands the decoder packets whose references have
+  not arrived. The steady march of POC numbers (21, 22, 23...) was the
+  giveaway — genuine packet loss is bursty and irregular, not sequential.
 
-* Hardware decode via `nvv4l2decoder` is used when OpenCV was built with
-  GStreamer. This moves HEVC decoding off the CPU onto the Orin's dedicated
-  NVDEC block, freeing cores for inference and the Flask app.
+* DO NOT add an `application/x-rtp,...` caps filter between rtspsrc and the
+  depayloader. It is not needed and can prevent the dynamic pad from linking.
+
+* The freeze watchdog judges freshness on frame CONTENT, not on a timestamp.
+  An earlier version called healthy() immediately after refreshing
+  last_frame_time, so it could never return False, and a frozen RTSP feed
+  re-delivering the same buffer would never trigger a reconnect.
 
 * Default backend is CAP_ANY, not CAP_DSHOW (which is Windows-only).
+
+Set SENTRY_FORCE_FFMPEG=1 in the environment to skip GStreamer entirely.
 """
 
 import os
@@ -63,7 +70,8 @@ HEIGHT = 480
 STD_MIN = 6
 MEAN_MIN = 4
 
-# FFmpeg options for RTSP streams.
+# FFmpeg options for RTSP streams. See the header note on why nobuffer and
+# reorder_queue_size=0 are deliberately absent.
 #   rtsp_transport=tcp    : retransmit lost packets instead of leaving holes
 #                           in the reference chain
 #   stimeout=5000000      : 5 s socket timeout (microseconds); also stops
@@ -82,8 +90,9 @@ RTSP_OPTIONS = (
     "flags;low_delay"
 )
 
-# Prefer hardware decode when OpenCV supports GStreamer. Set the env var
-# SENTRY_FORCE_FFMPEG=1 to disable and fall back to FFmpeg.
+# Prefer hardware decode when OpenCV supports GStreamer. The pip
+# `opencv-python` wheel does NOT; JetPack's system build does. Check with:
+#   python3 -c "import cv2; print(cv2.getBuildInformation())" | grep -i gstreamer
 USE_GSTREAMER = (
     "GStreamer:                   YES" in cv2.getBuildInformation()
     and os.environ.get("SENTRY_FORCE_FFMPEG", "0") != "1"
@@ -121,11 +130,17 @@ def _gst_pipeline(source, codec="h265", latency=200):
 
     `drop=true max-buffers=1` on the appsink means the reader always gets the
     newest frame rather than working through a backlog, which is what you want
-    for live detection: a stale frame is worse than a skipped one.
+    for live detection: a stale frame is worse than a skipped one. It also
+    means CAP_PROP_BUFFERSIZE must NOT be set on this capture (see header).
+
+    nvvidconv does the NV12 -> BGRx conversion on the VIC hardware block; the
+    final videoconvert to BGR is the one unavoidable CPU step, since OpenCV
+    requires 3-channel BGR.
     """
     depay = "rtph265depay ! h265parse" if codec == "h265" else "rtph264depay ! h264parse"
     return (
-        f"rtspsrc location={source} protocols=tcp latency={latency} ! "
+        f"rtspsrc location={source} protocols=tcp latency={latency} "
+        f"drop-on-latency=true ! "
         f"{depay} ! nvv4l2decoder ! "
         "nvvidconv ! video/x-raw,format=BGRx ! "
         "videoconvert ! video/x-raw,format=BGR ! "
@@ -218,14 +233,17 @@ def open_source(source, backend=cv2.CAP_ANY, warmup_frames=20,
     """
     is_url = isinstance(source, str)
     cap = None
+    used_gstreamer = False      # gates the cap.set() calls below
 
     if is_url and prefer_hw and USE_GSTREAMER:
         pipeline = _gst_pipeline(source, codec=codec)
         cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
         if cap.isOpened():
+            used_gstreamer = True
             print(f"[open_source] using GStreamer/NVDEC for {source}")
         else:
-            print("[open_source] GStreamer pipeline failed, falling back to FFmpeg")
+            print(f"[open_source] GStreamer pipeline failed for {codec}, "
+                  f"falling back to FFmpeg")
             cap.release()
             cap = None
 
@@ -234,7 +252,8 @@ def open_source(source, backend=cv2.CAP_ANY, warmup_frames=20,
         # at open time and ignores later changes.
         os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = RTSP_OPTIONS
         cap = cv2.VideoCapture(source, cv2.CAP_FFMPEG)
-        # Fail fast instead of blocking forever on a dead camera.
+        # Fail fast instead of blocking forever on a dead camera. Safe here:
+        # this is the FFmpeg backend, which supports these properties.
         try:
             cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, open_timeout_ms)
             cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, read_timeout_ms)
@@ -249,19 +268,24 @@ def open_source(source, backend=cv2.CAP_ANY, warmup_frames=20,
         cap.release()
         return None, None
 
-    if is_url:
-        # Buffer size 1 => always decode the LATEST frame, never a backlog.
-        # (No-op on the GStreamer path, where the appsink already does this.)
+    # IMPORTANT: no cap.set() at all on the GStreamer path. Setting an
+    # unsupported property on a live pipeline drops it out of PLAYING and
+    # produces "unhandled property" -> "Internal data stream error". The
+    # appsink already does newest-frame-wins via drop=true max-buffers=1.
+    if is_url and not used_gstreamer:
         try:
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         except Exception:
             pass
-    else:
+    elif not is_url:
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
         cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
 
-    time.sleep(0.5)
+    # GStreamer pipelines are already PLAYING and deliver immediately; the
+    # settle delay is only useful for local sensors warming up.
+    if not used_gstreamer:
+        time.sleep(0.5)
 
     for _ in range(warmup_frames):
         ret, frame = cap.read()
@@ -434,7 +458,7 @@ if __name__ == "__main__":
     import sys
 
     # Pass an RTSP URL as an argument to test the network path:
-    #   python3 camera_helper.py "rtsp://user:pass@192.168.88.8:554/video/live?channel=1&subtype=2"
+    #   python3 camera_helper.py "rtsp://user:pass@192.168.88.8:554/video/live?channel=1&subtype=1"
     # With no argument, it auto-detects a local camera.
     if len(sys.argv) > 1:
         src = sys.argv[1]
@@ -450,7 +474,10 @@ if __name__ == "__main__":
     stream = CameraStream(src, name="test").start()
     print("Reading stream. Press Ctrl+C to quit.")
 
-    headless = os.environ.get("DISPLAY") is None and os.name != "nt"
+    # Headless by default: the Qt window is not worth the font warnings when
+    # all you want is to confirm frames are arriving. Set SENTRY_SHOW=1 for a
+    # window on a machine with a display.
+    headless = os.environ.get("SENTRY_SHOW", "0") != "1"
     t0 = time.time()
 
     try:

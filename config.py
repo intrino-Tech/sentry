@@ -6,10 +6,11 @@ Shared settings for the whole system. Edit values here; both the detector
 
 TENSORRT NOTE
 -------------
-The .engine files are compiled ON THIS DEVICE for THIS GPU (sm_87) and this
-TensorRT version. They are NOT portable: you cannot build them on a
-workstation and copy them over, and they must be rebuilt after any JetPack
-upgrade OR after changing the power mode you run in (TensorRT picks kernels
+The .engine files are compiled ON THIS DEVICE for THIS GPU (sm_87), against
+THIS TensorRT version. They are NOT portable: you cannot build them on a
+workstation and copy them over, you cannot copy them between projects with
+different TensorRT versions, and they must be rebuilt after any JetPack
+upgrade or after changing the power mode you run in (TensorRT picks kernels
 by measured timing, so an engine profiled at 611 MHz may not be optimal at
 full clocks).
 
@@ -18,11 +19,38 @@ Rebuild with:
     YOLO_AUTOINSTALL=false yolo export model=firebest.pt format=engine half=True device=0
     YOLO_AUTOINSTALL=false yolo export model=best.pt     format=engine half=True device=0
 
+A version mismatch surfaces as:
+    AttributeError: 'NoneType' object has no attribute 'create_execution_context'
+which looks like a code bug but is always a TensorRT version problem. Check
+with:
+    python3 -c "import tensorrt; print(tensorrt.__version__, tensorrt.__file__)"
+The path must be under /usr/lib/python3.12/dist-packages (JetPack's copy). If
+it points inside the venv, a pip wheel is shadowing JetPack's TensorRT and
+every .engine will fail to load — uninstall it:
+    pip uninstall -y tensorrt_cu13 tensorrt_cu13_bindings tensorrt_cu13_libs
+
 Set USE_TENSORRT = False to fall back to the .pt files (slower, and depends on
 PyTorch's CUDA kernels working on this GPU).
 """
 
 import os
+from pathlib import Path
+
+# ---------------- .env loading ----------------
+# Loaded HERE rather than in run.py so that every entry point — the service, a
+# test one-liner, an export script — gets the same configuration without
+# having to remember to load it first. Python executes top to bottom, so this
+# must stay above the os.environ.get() calls further down.
+_env = Path(__file__).parent / ".env"
+if _env.exists():
+    for _line in _env.read_text().splitlines():
+        _line = _line.strip()
+        if _line and not _line.startswith("#") and "=" in _line:
+            _k, _v = _line.split("=", 1)
+            # .env files are NOT shell scripts: quotes are literal characters
+            # unless stripped here, so CAM_PASS='x' would arrive as "'x'" and
+            # the camera would reject it with 401 Unauthorized.
+            os.environ.setdefault(_k.strip(), _v.strip().strip('"').strip("'"))
 
 # ---------------- Runtime ----------------
 
@@ -31,7 +59,8 @@ USE_TENSORRT = True          # False -> use the .pt models instead
 # Smoke detection is currently OFF. Running both a YOLO11s and an RT-DETR at
 # 30 fps pinned the GPU at 98% with a single camera. Set True to re-enable;
 # the smoke engine is only loaded when this is True, so turning it off also
-# frees its device memory.
+# frees its device memory. Re-enabling requires best.engine to exist — export
+# it first if you have only best.pt.
 ENABLE_SMOKE = False
 
 # ---------------- Models ----------------
@@ -64,14 +93,14 @@ SMOKE_CONF = 0.55
 
 # Inference passes per second, per camera.
 #
-# This was 30, which is why the GPU sat at 98% on one camera. Fire and smoke
-# develop over seconds, not milliseconds, so 5 fps costs nothing operationally
-# (200 ms worst-case detection latency) and cuts GPU load roughly 6x. That is
-# the difference between one camera and several on this board.
+# 30 is what pinned the GPU at 98% on a single camera. Fire and smoke develop
+# over seconds, not milliseconds, so 5 fps costs nothing operationally (200 ms
+# worst-case detection latency) and cuts GPU load roughly 6x. That is the
+# difference between one camera and several on this board.
 #
 # Raise cautiously and re-check `tegrastats` — GR3D_FREQ should stay well
 # under 70% so there is headroom for stream decode and the MJPEG encode.
-DETECT_FPS = 30
+DETECT_FPS = 5
 
 ALARM_HOLD = 2
 
@@ -87,15 +116,20 @@ JPEG_QUALITY = 25            # stream quality sent to browsers (1-100)
 
 # --- IP cameras (auto-connected at startup) ---
 # Credentials come from the environment so they never land in source control
-# or in the startup log. Put them in a .env file (gitignored) or export them
-# in the systemd unit:
+# or in the startup log. Put them in a .env file (gitignored, chmod 600):
 #     CAM_USER=admin
-#     CAM_PASS=your_password_here     # @ must be written as %40
+#     CAM_PASS=your_password_here     # @ must be written as %40, NO quotes
 CAM_USER = os.environ.get("CAM_USER", "admin")
 CAM_PASS = os.environ.get("CAM_PASS", "")
 
+if not CAM_PASS:
+    # Fail loudly rather than emitting rtsp://admin:@host and leaving you to
+    # decode a wall of 401 Unauthorized messages.
+    print("[config] WARNING: CAM_PASS is empty — RTSP connections will 401. "
+          "Check that .env exists next to config.py and is unquoted.")
 
-def _rtsp(host, channel=1, subtype=2):
+
+def _rtsp(host, channel=1, subtype=1):
     """Build an RTSP URL with credentials injected from the environment."""
     return (f"rtsp://{CAM_USER}:{CAM_PASS}@{host}:554"
             f"/video/live?channel={channel}&subtype={subtype}")
@@ -112,10 +146,11 @@ def mask_url(url):
 
 
 IP_CAMERAS = [
-    (_rtsp("192.168.88.8", channel=1, subtype=2), "Camera 1"),
-    (_rtsp("192.168.88.12", channel=1, subtype=2), "Camera 2"),
-    (_rtsp("192.168.88.6",  channel=1, subtype=2), "Camera 3"),
+    (_rtsp("192.168.88.8",  channel=1, subtype=1), "Camera 1"),
+    (_rtsp("192.168.88.12", channel=1, subtype=1), "Camera 2"),
+    (_rtsp("192.168.88.6",  channel=1, subtype=1), "Camera 3"),
 ]
+
 # --- MQTT sensors (ESP32 / DS18B20 etc.) ---
 # SENTRY joins the SAME broker your ESP32 publishes to and subscribes as a
 # read-only client. This is a supplementary environmental signal, NOT a
@@ -124,8 +159,8 @@ MQTT_BROKER    = "192.168.88.13"   # match DEFAULT_MQTT_SERVER in the ESP32 sket
 MQTT_PORT      = 1883
 MQTT_KEEPALIVE = 60
 MQTT_CLIENT_ID = "sentry-dashboard"
-MQTT_USERNAME  = None              # set if your broker requires auth
-MQTT_PASSWORD  = None
+MQTT_USERNAME  = os.environ.get("MQTT_USERNAME") or None   # set if broker requires auth
+MQTT_PASSWORD  = os.environ.get("MQTT_PASSWORD") or None
 
 # How long (seconds) without a message before a sensor is shown as OFFLINE.
 # The ESP32 publishes every ~3s, so 15s tolerates a few missed messages.

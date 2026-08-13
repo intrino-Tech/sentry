@@ -3,3 +3,5 @@ ultralytics
 reportlab>=5.0.0
 numpy
 Pillow
+paho-mqtt>=2.0.0
+tensorrt==10.16.2.10
